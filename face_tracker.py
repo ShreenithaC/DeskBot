@@ -1,9 +1,3 @@
-#!/usr/bin/env python3
-"""
-Face Tracking with Motor Control for Raspberry Pi
-Tracks faces and controls a DC motor to follow horizontal movement.
-"""
-
 import cv2
 import sys
 import socket
@@ -36,7 +30,7 @@ CAMERA_INDEX = 0
 
 # Motor control settings
 DEAD_ZONE = 50  # Pixels from center where motor won't move (face is "centered")
-MOTOR_SPEED = 0.7  # Motor speed (0.0 to 1.0)
+MOTOR_SPEED = 1.0  # Motor speed (0.0 to 1.0)
 
 
 def get_local_ip():
@@ -185,55 +179,56 @@ def process_frames():
     
     print("Camera ready")
     
-    while True:
-        ret, frame = cap.read()
-        
-        if not ret:
-            time.sleep(0.1)
-            continue
-        
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        
-        faces = face_cascade.detectMultiScale(
-            gray,
-            scaleFactor=1.1,
-            minNeighbors=5,
-            minSize=(30, 30)
-        )
-        
-        frame_height, frame_width = frame.shape[:2]
-        frame_center_x = frame_width // 2
-        frame_center_y = frame_height // 2
-        
-        # Track the largest face
-        if len(faces) > 0:
-            # Find largest face
-            largest_face = max(faces, key=lambda f: f[2] * f[3])
-            x, y, w, h = largest_face
+    try:
+        while True:
+            ret, frame = cap.read()
             
-            # Draw simple rectangle around face
-            cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 255, 255), 2)
+            if not ret:
+                time.sleep(0.1)
+                continue
             
-            # Calculate offset from center
-            face_center_x = x + w // 2
-            face_center_y = y + h // 2
-            offset_x = face_center_x - frame_center_x
-            offset_y = face_center_y - frame_center_y
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             
-            # Control motors
-            control_motors(offset_x, offset_y)
-        else:
-            # No face detected, stop motors
-            stop_motors()
-        
-        # Update frame for streaming
-        with frame_lock:
-            current_frame = frame.copy()
-        
-        time.sleep(0.01)
-    
-    cap.release()
-    stop_motors()
+            faces = face_cascade.detectMultiScale(
+                gray,
+                scaleFactor=1.1,
+                minNeighbors=5,
+                minSize=(30, 30)
+            )
+            
+            frame_height, frame_width = frame.shape[:2]
+            frame_center_x = frame_width // 2
+            frame_center_y = frame_height // 2
+            
+            # Track the largest face
+            if len(faces) > 0:
+                # Find largest face
+                largest_face = max(faces, key=lambda f: f[2] * f[3])
+                x, y, w, h = largest_face
+                
+                # Draw simple rectangle around face
+                cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 255, 255), 2)
+                
+                # Calculate offset from center
+                face_center_x = x + w // 2
+                face_center_y = y + h // 2
+                offset_x = face_center_x - frame_center_x
+                offset_y = face_center_y - frame_center_y
+                
+                # Control motors
+                control_motors(offset_x, offset_y)
+            else:
+                # No face detected, stop motors
+                stop_motors()
+            
+            # Update frame for streaming
+            with frame_lock:
+                current_frame = frame.copy()
+            
+            time.sleep(0.01)
+    finally:
+        cap.release()
+        stop_motors()
 
 
 def main():
@@ -246,7 +241,7 @@ def main():
     print("\n  Ctrl+C to stop")
     print("=" * 40 + "\n")
     
-    # Start server
+    # Start HTTP server
     server_thread = Thread(target=start_server, daemon=True)
     server_thread.start()
     
